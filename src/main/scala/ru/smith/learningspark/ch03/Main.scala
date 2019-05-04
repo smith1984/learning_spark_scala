@@ -1,5 +1,6 @@
 package ru.smith.learningspark.ch03
 
+import org.apache.spark.storage.StorageLevel
 import org.apache.spark.{SparkConf, SparkContext}
 
 object Main extends App{
@@ -35,5 +36,8 @@ object Main extends App{
   val avg = result_._1 / result_._2.toDouble
   println(avg)
 
+  result.persist(StorageLevel.DISK_ONLY)
+  println(result.count())
+  println(result.collect().mkString(","))
   sc.stop()
 }
