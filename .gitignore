@@ -3,7 +3,5 @@
 *.class
 *.log
 project/*
-test/*
 target/*
-.idea/*
-*.iml
+src/test/*
