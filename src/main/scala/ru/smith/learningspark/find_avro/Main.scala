@@ -6,8 +6,8 @@ import org.apache.spark.{SparkConf, SparkContext}
 object Main extends App {
   val conf = new SparkConf().setAppName("wordCount")
   val sc = new SparkContext(conf)
-  val src = "/home/smith/test/dml"
-  val trg = "/home/smith/test/dml1"
+  val src = "/home/smith/projects/learning_spark_scala/dml"
+  val trg = "/home/smith/projects/learning_spark_scala/dml1"
   val tmpTableName = "tmpTable"
 
 

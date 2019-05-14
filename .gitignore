@@ -6,3 +6,6 @@ project/*
 target/*
 src/test/*
 .idea/*
+wordcount/*
+dml1/*
+
