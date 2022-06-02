@@ -1,0 +1,85 @@
+stages:
+  - lint
+  - assembly
+  - put to stage
+  - put to prod
+
+.merge requests:
+  only:
+    refs:
+      - merge_requests
+    variables:
+      - $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"
+
+.master:
+  only:
+    refs:
+      - master
+
+.sbt:
+  image: nexus-repo.dmp.vimpelcom.ru/dmp_core/scala-sbt:v2.11.12-1.6.2-2
+  variables:
+    SBT_OPTS: "-Dhttp.proxyHost=${PROXY_HOST} -Dhttp.proxyPort=${PROXY_PORT} -Dhttps.proxyHost=${PROXY_HOST} -Dhttps.proxyPort=${PROXY_PORT} -Dsbt.override.build.repos=true"
+  cache:
+    key:
+      files:
+        - build.sbt
+        - project/build.properties
+    paths:
+      - .sbt
+      - .ivy2/cache
+      - .cache/coursier/v1
+  before_script:
+    - mv .sbt ~/.sbt || true
+    - mv .ivy2/cache ~/.ivy2/cache || true
+    - mv .cache/coursier/v1 ~/.cache/coursier/v1 || true
+  after_script:
+    - find ~/.ivy2/cache -name "ivydata-*.properties" -delete || true
+    - find ~/.cache/coursier/v1 -name "ivydata-*.properties" -delete || true
+    - find ~/.sbt -name "*.lock" -delete || true
+    - mv ~/.sbt .sbt || true
+    - mv ~/.ivy2/cache .ivy2/cache || true
+    - mv ~/.cache/coursier/v1 .cache/coursier/v1 || true
+
+.kinit:
+  before_script:
+    - export VAULT_TOKEN="$(vault write -field=token $VAULT_AUTH_TYPE role=$VAULT_ROLE jwt=$VAULT_SA_TOKEN)"
+    - export USERNAME="$(vault kv get -field=username $VAULT_PATH_AIRFLOW_TECH_USER)"
+    - export PASSWORD="$(vault kv get -field=password $VAULT_PATH_AIRFLOW_TECH_USER)"
+    - echo $PASSWORD | kinit $USERNAME
+
+.assembly:
+  extends: [.sbt, .master]
+  script:
+    - sbt $SBT_SUBPROJECT/assembly
+  artifacts:
+    paths:
+      - $SBT_SUBPROJECT/target/*/*.jar
+    expire_in: 1 week
+
+.put to stage:
+  image: nexus-repo.dmp.vimpelcom.ru/gitlab-runners/hdpclient-vault:hpd31-vault160
+  extends: [.kinit, .master]
+  script:
+    - OUTPUT_PATH=/apps/airflow/$HDFS_TARGET_USER/$CI_PROJECT_NAME/$SBT_SUBPROJECT
+    - hdfs dfs -mkdir -p $OUTPUT_PATH/stage
+    - hdfs dfs -put -f $SBT_SUBPROJECT/target/*/*.jar $OUTPUT_PATH/stage
+    - hdfs dfs -ls $OUTPUT_PATH/stage
+
+.put to prod:
+  image: nexus-repo.dmp.vimpelcom.ru/gitlab-runners/hdpclient-vault:hpd31-vault160
+  extends: [.kinit, .master]
+  when: manual
+  script:
+    - OUTPUT_PATH=/apps/airflow/$HDFS_TARGET_USER/$CI_PROJECT_NAME/$SBT_SUBPROJECT
+    - LATEST_JAR_PATH="$(hdfs dfs -ls -R $OUTPUT_PATH/stage | awk -F" " '{print $6" "$7" "$8}' | sort -nr | head -1 | cut -d" " -f3)"
+    - hdfs dfs -mkdir -p $OUTPUT_PATH/prod
+    - hdfs dfs -cp -f $LATEST_JAR_PATH $OUTPUT_PATH/prod
+    - hdfs dfs -cp -f $LATEST_JAR_PATH $OUTPUT_PATH/prod/$SBT_SUBPROJECT-latest.jar
+    - hdfs dfs -ls $OUTPUT_PATH/prod
+
+lint:
+  extends: [.sbt, .merge requests]
+  stage: lint
+  script:
+    - sbt lint
