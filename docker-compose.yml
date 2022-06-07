@@ -1,0 +1,15 @@
+version: '2'
+services:
+  java_app:
+    image: nexus-repo.company.ru/core/learning_spark_scala:0.1
+    depends_on:
+      - postgres
+  postgres:
+    container_name: postgres_container
+    image: nexus-repo.company.ru/docker_hub/postgres
+    env_file:
+      - .env
+    volumes:
+      - ./cache/postgre-data:/data/postgres:rw
+    ports:
+      - "5432:5432"

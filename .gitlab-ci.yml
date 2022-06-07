@@ -3,6 +3,7 @@ stages:
   - assembly
   - put to stage
   - put to prod
+  - build-docker-gitlab
 
 .merge requests:
   only:
@@ -17,7 +18,7 @@ stages:
       - master
 
 .sbt:
-  image: nexus-repo.dmp.vimpelcom.ru/dmp_core/scala-sbt:v2.11.12-1.6.2-2
+  image: nexus-repo.company.ru/core/scala-sbt:v2.11.12-1.6.2-2
   variables:
     SBT_OPTS: "-Dhttp.proxyHost=${PROXY_HOST} -Dhttp.proxyPort=${PROXY_PORT} -Dhttps.proxyHost=${PROXY_HOST} -Dhttps.proxyPort=${PROXY_PORT} -Dsbt.override.build.repos=true"
   cache:
@@ -58,7 +59,7 @@ stages:
     expire_in: 1 week
 
 .put to stage:
-  image: nexus-repo.dmp.vimpelcom.ru/gitlab-runners/hdpclient-vault:hpd31-vault160
+  image: nexus-repo.company.ru/gitlab-runners/hdpclient-vault:hpd31-vault160
   extends: [.kinit, .master]
   script:
     - OUTPUT_PATH=/apps/airflow/$HDFS_TARGET_USER/$CI_PROJECT_NAME/$SBT_SUBPROJECT
@@ -67,7 +68,7 @@ stages:
     - hdfs dfs -ls $OUTPUT_PATH/stage
 
 .put to prod:
-  image: nexus-repo.dmp.vimpelcom.ru/gitlab-runners/hdpclient-vault:hpd31-vault160
+  image: nexus-repo.company.ru/gitlab-runners/hdpclient-vault:hpd31-vault160
   extends: [.kinit, .master]
   when: manual
   script:
@@ -78,8 +79,27 @@ stages:
     - hdfs dfs -cp -f $LATEST_JAR_PATH $OUTPUT_PATH/prod/$SBT_SUBPROJECT-latest.jar
     - hdfs dfs -ls $OUTPUT_PATH/prod
 
-lint:
+.lint:
   extends: [.sbt, .merge requests]
   stage: lint
   script:
     - sbt lint
+
+.docker-build:
+  image: ${NEXUS_OSS_URL_SCHEMELESS}/core/docker:19.03
+  stage: build-docker-gitlab
+  services:
+    - ${NEXUS_OSS_URL_SCHEMELESS}/core/docker:19.03.11-dind
+    - ${NEXUS_OSS_URL_SCHEMELESS}/core/gitlab-runner-helper:1.0
+  before_script:
+    - docker login -u ${CI_REGISTRY_USER} -p "${CI_REGISTRY_PASSWORD}" ${CI_REGISTRY}
+  script:
+    - docker build
+      -t ${CI_REGISTRY_IMAGE}:${CI_COMMIT_REF_NAME}
+      --build-arg http_proxy=${PROXY}
+      --build-arg https_proxy=${PROXY}
+      .
+    - docker push "${CI_REGISTRY_IMAGE}:${CI_COMMIT_REF_NAME}"
+    - echo -e "\e[95mCICD2.0 info\e[0m new image full name \e[95m${CI_REGISTRY_IMAGE}:${CI_COMMIT_REF_NAME}\e[0m"
+  after_script:
+    - docker logout ${CI_REGISTRY}

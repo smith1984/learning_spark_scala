@@ -1,11 +1,8 @@
-# Created by .ignore support plugin (hsz.mobi)
-### Scala template
-*.class
-*.log
-project/*
-target/*
-src/test/*
 .idea/*
-wordcount/*
-dml1/*
+.bsp/*
+target/*
+project/*
+*.iml
 
+!project/build.properties
+!project/plugins.sbt
