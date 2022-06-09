@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.container.name }}
+spec:
+  replicas: {{ .Values.container.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.container.name }}
+  template:
+    metadata:
+      annotations:
+        vault.hashicorp.com/agent-inject: 'true'
+        vault.hashicorp.com/agent-inject-status: 'update'
+        vault.hashicorp.com/secret-volume-path: "{{ .Values.vault.mountPath }}"
+        vault.hashicorp.com/agent-inject-secret-service.keytab: "{{ tpl .Values.vault.keytab . }}"
+        vault.hashicorp.com/agent-inject-template-service.keytab: |
+          {{`{{- with secret `}}"{{ tpl .Values.vault.keytab . }}"{{` -}}
+          {{ .Data.data.service | base64Decode }}
+          {{- end -}}`}}
+        vault.hashicorp.com/agent-inject-secret-creds.properties: "{{ tpl .Values.vault.creds . }}"
+        vault.hashicorp.com/agent-inject-template-creds.properties: |
+          {{`{{- with secret `}}"{{ tpl .Values.vault.creds . }}"{{` -}}
+          auth.ldap.password={{ .Data.data.ldappass }}
+          mdm.username={{ .Data.data.mdmuser }}
+          mdm.password={{ .Data.data.mdmpass }}
+          mdm.datasource.username={{ .Data.data.orcluser }}
+          mdm.datasource.password={{ .Data.data.orclpass }}
+          {{- end -}}`}}
+        vault.hashicorp.com/role: {{ .Values.vault.role }}
+
+      labels:
+        app: {{ .Values.container.name }}
+        app.kubernetes.io/name: {{ .Values.container.name }}
+        app.kubernetes.io/instance: {{ .Values.container.name }}
+    spec:
+      serviceAccountName: gitlab-runner
+      volumes:
+        - name: conf
+      imagePullSecrets:
+        - name: bgds
+      containers:
+        - name: {{ .Values.container.name }}
+          image: '{{ .Values.repository }}:{{ required "A valid .Values.cicd.product.version entry required! Looks like you are not using CICD 2.0 .helm.yml template to deploy this Chart" .Values.cicd.product.version }}'
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: {{ .Values.container.port }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/ping
+              port: http
+            initialDelaySeconds: 120
+            periodSeconds: 60
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/ping
+              port: http
+            initialDelaySeconds: 120
+            periodSeconds: 60
+          volumeMounts:
+            - name: conf
+              mountPath: /home/restapi/conf
+            - name: krb5
+              mountPath: /etc/krb5.conf
+              subPath: krb5.conf

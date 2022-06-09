@@ -1,0 +1,11 @@
+environment: dev
+
+repository: "gitlab-registry.prod.company.ru/domaincustomer-beeid/beeid-restapi"
+# tag: не используется (см cicd.product.version в деплое)
+
+krb:
+  user: tech_dev_ms
+  service: "k8s-dev-01.company.ru"
+
+datasource:
+  metrics: "jdbc:postgresql://ingress-1.dev.company.ru:5460/metrics"

@@ -1,0 +1,20 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: {{ .Values.container.name }}-ingress
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/ssl-ciphers: "ALL:!aNULL:!EXPORT56:RC4+RSA:+HIGH:+MEDIUM:+LOW:+SSLv2:+EXP"
+spec:
+  rules:
+    - host: customer-api.{{ .Values.environment }}.company.ru # < to be same as tls hostname
+      http:
+        paths:
+          - path: /
+            backend:
+              serviceName: {{ .Values.container.name }}-service
+              servicePort: {{ .Values.container.port }}
+  tls: # < placing a host in the TLS config will indicate a certificate should be created
+    - hosts:
+        - customer-api.{{ .Values.environment }}.company.ru # < must be created in DNS manually
+      secretName: {{ .Values.container.name }}-tls # < cert-manager will store the created certificate in this secret.

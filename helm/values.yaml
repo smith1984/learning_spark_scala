@@ -1,0 +1,102 @@
+container:
+  name: restapi
+  port: 8080
+  replicas: 1
+
+vault:
+  basePath: "apps-secrets/data/role-based-auths/vault/kubernetes/customer"
+  keytab: "{{ .Values.vault.basePath }}/keytab"
+  creds: "{{ .Values.vault.basePath }}/creds"
+  role: customer-injector-role
+  mountPath: "/home/restapi/secrets"
+
+krb:
+  keytabLocation: "{{ .Values.vault.mountPath }}/service.keytab"
+  userPrincipal: "{{ .Values.krb.user }}@COMPANY.RU"
+  servicePrincipal: "HTTP/{{ .Values.krb.service }}@COMPANY.RU"
+
+application: |
+  server.port={{ .Values.container.port }}
+  logging.file.name=logs/api.log
+
+  management.endpoint.health.enabled=true
+  management.endpoint.health.show-details=always
+  management.endpoint.env.enabled=true
+  management.endpoint.logfile.enabled=true
+  management.endpoints.web.exposure.include=health,env,logfile
+
+  auth.krb.keytab-location={{ tpl .Values.krb.keytabLocation . }}
+  auth.krb.user-principal={{ tpl .Values.krb.userPrincipal . }}
+  auth.krb.service-principal={{ tpl .Values.krb.servicePrincipal . }}
+  auth.ldap.server=ldap://ms-dcs.COMPANY.ru:389
+  auth.ldap.domain=COMPANY.RU
+  auth.ldap.search-base=dc=bee,dc=company,dc=ru
+  auth.ldap.search-filter=(&(objectClass=user)(sAMAccountName={0})(memberOf=CN=bgd_cust360_prod_ms,OU=BGD,OU=Groups,DC=bee,DC=company,DC=ru))
+
+  mdm.server=http://dg-mdm.company.ru:8080
+  mdm.authPath=/e360/com.informatica.tools.mdm.web.auth/login
+  mdm.database=dg~-mdm~-db.company.ru-orcl-TEST
+  mdm.entity=HUB_TEST
+  mdm.searchRecord=false
+  mdm.timeoutMillis=2000
+  mdm.useJdbc=true
+  mdm.schema=TEST
+  mdm.testView=PKG_API
+  mdm.banView=PKG_API_BAN
+  mdm.datasource.url={{ tpl .Values.datasource.mdm . }}
+
+  #aerospike.host=aerospike-release-aerospike
+  #aerospike.port=3000
+  #aerospike.namespace=customer
+
+  # metrics cache
+  metrics.datasource.url={{ tpl .Values.datasource.metrics . }}
+  metrics.datasource.username={{ tpl .Values.krb.user . }}
+  metrics.datasource.liquibase.change-log=classpath:db/db.changelog-master.xml
+
+krb5: |
+  [libdefaults]
+    renew_lifetime = 7d
+    forwardable = true
+    default_realm = COMPANY.RU
+    ticket_lifetime = 24h
+    dns_lookup_realm = false
+    dns_lookup_kdc = false
+    #default_tgs_enctypes = aes des3-cbc-sha1 rc4 des-cbc-md5
+    #default_tkt_enctypes = aes des3-cbc-sha1 rc4 des-cbc-md5
+    #permitted_enctypes = rc4-hmac
+    default_tkt_enctypes = rc4-hmac
+    default_tgs_enctypes = rc4-hmac
+  [domain_realm]
+    .vimpelcom.ru = COMPANY.RU
+    vimpelcom.ru = COMPANY.RU
+  [logging]
+    default = FILE:/var/log/krb5kdc.log
+    admin_server = FILE:/var/log/kadmind.log
+    kdc = FILE:/var/log/krb5kdc.log
+  [realms]
+    COMPANY.RU = {
+      admin_server = ms-dcs.COMPANY.ru
+      kdc = ms-dcs.COMPANY.ru
+    }
+
+jaas: |
+  pgjdbc {
+    com.sun.security.auth.module.Krb5LoginModule required
+    doNotPrompt=true
+    useTicketCache=false
+    storeKey=true
+    debug=false
+    useKeyTab=true
+    principal="{{ tpl .Values.krb.userPrincipal . }}"
+    keyTab="{{ tpl .Values.krb.keytabLocation . }}";
+  };
+  com.sun.security.jgss.krb5.initiate {
+    com.sun.security.auth.module.Krb5LoginModule required
+    useKeyTab=true
+    keyTab="{{ tpl .Values.krb.keytabLocation . }}"
+    storeKey=true
+    debug=false
+    principal="{{ tpl .Values.krb.userPrincipal . }}";
+  };
+

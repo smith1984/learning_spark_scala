@@ -1,0 +1,11 @@
+environment: prod
+
+repository: "nexus-repo.company.ru/domaincustomer-beeid/beeid-restapi"
+# tag: не используется (см cicd.product.version в деплое)
+
+krb:
+  user: tech_prod_ms
+  service: "ingress-1.prod.company.ru"
+
+datasource:
+  metrics: "jdbc:postgresql://ingress-1.dev.company.ru:5460/metrics"
