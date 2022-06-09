@@ -1,7 +1,6 @@
 environment: dev
 
-repository: "gitlab-registry.prod.company.ru/domaincustomer-beeid/beeid-restapi"
-# tag: не используется (см cicd.product.version в деплое)
+repository: "gitlab-registry.prod.company.ru/customer/restapi"
 
 krb:
   user: tech_dev_ms

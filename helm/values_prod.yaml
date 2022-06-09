@@ -1,7 +1,6 @@
 environment: prod
 
-repository: "nexus-repo.company.ru/domaincustomer-beeid/beeid-restapi"
-# tag: не используется (см cicd.product.version в деплое)
+repository: "nexus-repo.company.ru/customer/restapi"
 
 krb:
   user: tech_prod_ms
